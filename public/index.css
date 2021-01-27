@@ -1,0 +1,13 @@
+#title {
+    font-size: xx-large;
+    font-weight: bolder;
+    font-family: 'Times New Roman', Times, serif;
+    text-align: center;
+    margin: 1rem;
+}
+.btn {
+    font-weight: bold;
+}
+.col-item {
+    margin-bottom: 0.5rem;
+}
