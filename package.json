@@ -1,0 +1,19 @@
+{
+  "name": "pandemic-activity-web-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thefireblade/Pandemic-Activity-Web-App.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/thefireblade/Pandemic-Activity-Web-App/issues"
+  },
+  "homepage": "https://github.com/thefireblade/Pandemic-Activity-Web-App#readme"
+}
