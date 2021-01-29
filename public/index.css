@@ -11,3 +11,6 @@
 .col-item {
     margin-bottom: 0.5rem;
 }
+.file-upload-label{
+    font-weight: bolder;
+}
