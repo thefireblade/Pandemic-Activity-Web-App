@@ -107,7 +107,7 @@ const parseJSONToGraph = (file) => {
         
     });
     reader.readAsText(file); 
-    renderGraph(file.name);
+    console.log(file);
 
 };
 
