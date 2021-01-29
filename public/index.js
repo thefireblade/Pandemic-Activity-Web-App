@@ -1,16 +1,19 @@
 const globals = {
-    selectedHeuristic: ""
+    selectedHeuristic: "",
+    loadedGraph: new DisjointSetGraph(0)
 };
 
 const selectHeuristic = (heuristic) => {
     globals.selectHeuristic = heuristic;
     let btn = document.getElementById("dropdownMenu2");
     btn.innerHTML = heuristic;
-    console.log(heuristic);
 };
 
-const mainGraph = new DisjointSetGraph(10);
-
+const runHeuristic = () => {
+  if(globals.selectHeuristic == "Greedy") {
+    console.log(runGreedy(globals.loadedGraph));
+  }
+};
 
 const jsonFileSelector = document.getElementById('jsonInputFile');
 jsonFileSelector.addEventListener('change', (event) => {
@@ -19,3 +22,4 @@ jsonFileSelector.addEventListener('change', (event) => {
     parseJSONToGraph(fileList[0])
   }
 });
+

@@ -10,7 +10,7 @@ class DisjointVertex {
 }
 
 class DisjointSetGraph {
-    constructor(vertices, numPeople, numStores, numGyms){
+    constructor(vertices = 0, numPeople = 0, numStores = 0, numGyms = 0){
         this.vertices = vertices; // Total number of nodes
         this.numPeople = numPeople; // Number of people in the graph
         this.numStores = numStores; // Number of stores in the graph
@@ -20,7 +20,7 @@ class DisjointSetGraph {
         this.nodes = [];
         while(i < vertices){
             let componentSize = 0;
-            let type = "person";
+            let type = "people";
             if(i < numPeople){
                 componentSize = 1;
             } else if( i < numPeople + numGyms) {
@@ -31,6 +31,20 @@ class DisjointSetGraph {
             this.nodes.push(new DisjointVertex(i, 0, componentSize, type));
             i++;
         }
+    }
+    addNode(type){
+        let index = this.vertices;
+        this.vertices++;
+        let componentSize = 0;
+        if(type == "people") {
+            this.numPeople++;
+            componentSize = 1;
+        } else if(type == "store") {
+            this.numStores++;
+        } else {
+            this.numGyms++;
+        }
+        this.nodes.push(new DisjointVertex(index, 0, componentSize, type));
     }
     /**
      * Returns the parent of the node
@@ -101,20 +115,40 @@ class DisjointSetGraph {
  */
 const parseJSONToGraph = (file) => {  
     const reader = new FileReader();
+    const parser = new FileReader();
     reader.addEventListener('load', (event) => {
         let content = event.target.result;
-        let jsonObj = JSON.parse(content);
-        
+        renderGraph(content);
     });
-    reader.readAsText(file); 
-    console.log(file);
+    reader.readAsDataURL(file); 
+    parser.addEventListener('load', (event) => {
+        let content = event.target.result;
+        let jsonObj = JSON.parse(content);
+        globals.loadedGraph = new DisjointSetGraph();
+        jsonObj.nodes.forEach((node)=>{
+            globals.loadedGraph.addNode(node.type);
+        });
+        jsonObj.links.forEach((edge)=>{
+            let from = parseInt(edge.from) - 1;
+            let to = parseInt(edge.to) - 1;
+            globals.loadedGraph.find(from).neighbors.push(globals.loadedGraph.find(to))
+            globals.loadedGraph.find(to).neighbors.push(globals.loadedGraph.find(from))
+        });
+    });
+    parser.readAsText(file);
+    // console.log(file);
 
 };
 
 const renderGraph = (file) => {
-    var svg = d3.select("svg"),
-        width = +svg.attr("width"),
-        height = +svg.attr("height");
+    let svg = d3.select("svg")
+                .attr("width",  1920)
+                .attr("height",  1080)
+                .call(d3.zoom().on("zoom", function () {
+                    svg.attr("transform", d3.event.transform)
+                }));
+    let width = window.innerWidth;
+    let height = window.innerHeight;
 
     let simulation = d3.forceSimulation()
         .force("link", d3.forceLink().id(function(d) { return d.id; }))
@@ -141,10 +175,6 @@ const renderGraph = (file) => {
                     .data(graph.nodes)
         .enter().append("circle")
                 .attr("r", 6)
-                .call(d3.drag()
-                    .on("start", dragstarted)
-                    .on("drag", dragged)
-                    .on("end", dragended));
         
         var label = svg.append("g")
             .attr("class", "labels")
@@ -172,28 +202,14 @@ const renderGraph = (file) => {
                 .attr("r", 20)
                 .style("fill", "#d9d9d9")
                 .style("stroke", "#969696")
-                .style("stroke-width", "1px")
+                .style("stroke-width", "2px")
                 .attr("cx", function (d) { return d.x+6; })
                 .attr("cy", function(d) { return d.y-6; });
             
             label
                 .attr("x", function(d) { return d.x; })
                 .attr("y", function (d) { return d.y; })
-                .style("font-size", "20px").style("fill", "#4393c3");
+                .style("font-size", "10px").style("fill", "#4393c3");
         }
-        });
-        
-        function dragstarted(d) {
-            if (!d3.event.active) simulation.alphaTarget(0.3).restart()
-                simulation.fix(d);
-        }
-        
-        function dragged(d) {
-            simulation.fix(d, d3.event.x, d3.event.y);
-        }
-        
-        function dragended(d) {
-            if (!d3.event.active) simulation.alphaTarget(0);
-                simulation.unfix(d);
-        }
+    });
 };
