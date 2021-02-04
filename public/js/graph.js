@@ -1,5 +1,5 @@
 class DisjointVertex {
-    constructor(index, rank, componentSize, type, neighbors = []) {
+    constructor(index, rank, componentSize, type, neighbors = new Array()) {
         this.index = index;
         this.rank = rank;
         this.type = type;
@@ -79,7 +79,7 @@ class DisjointSetGraph {
             return this.largestConnectComponent;
         }
         if(bot_parent.rank > top_parent.rank){
-            temp = bot_parent;
+            let temp = bot_parent;
             bot_parent = top_parent;
             top_parent = temp;
         }
@@ -114,13 +114,12 @@ class DisjointSetGraph {
  * @param {File} file The actual file of the gml. 
  */
 const parseJSONToGraph = (file) => {  
-    const reader = new FileReader();
+    // const reader = new FileReader();
     const parser = new FileReader();
-    reader.addEventListener('load', (event) => {
-        let content = event.target.result;
-        renderGraph(content);
-    });
-    reader.readAsDataURL(file); 
+    // reader.addEventListener('load', (event) => {
+    //     let content = event.target.result;
+    // });
+    // reader.readAsDataURL(file); 
     parser.addEventListener('load', (event) => {
         let content = event.target.result;
         let jsonObj = JSON.parse(content);
@@ -131,85 +130,43 @@ const parseJSONToGraph = (file) => {
         jsonObj.links.forEach((edge)=>{
             let from = parseInt(edge.from) - 1;
             let to = parseInt(edge.to) - 1;
-            globals.loadedGraph.find(from).neighbors.push(globals.loadedGraph.find(to))
-            globals.loadedGraph.find(to).neighbors.push(globals.loadedGraph.find(from))
+            // globals.loadedGraph.find(from).neighbors.push(globals.loadedGraph.find(to));
+            // globals.loadedGraph.find(to).neighbors.push(globals.loadedGraph.find(from));
+            globals.loadedGraph.union(from, to);
         });
+        renderGraph(globals.loadedGraph);
     });
     parser.readAsText(file);
     // console.log(file);
 
 };
 
-const renderGraph = (file) => {
-    let svg = d3.select("svg")
-                .attr("width",  1920)
-                .attr("height",  1080)
-                .call(d3.zoom().on("zoom", function () {
-                    svg.attr("transform", d3.event.transform)
-                }));
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-
-    let simulation = d3.forceSimulation()
-        .force("link", d3.forceLink().id(function(d) { return d.id; }))
-        .force("charge", d3.forceManyBody().strength(-400))
-        .force("center", d3.forceCenter(width / 2, height / 2));
-
-    d3.json(file, function(error, graph) {
-        if (error) throw error;
-        
-        graph.links.forEach(function(d){
-            d.source = d.from;    
-            d.target = d.to;
-        });           
-        
-        var link = svg.append("g")
-                        .style("stroke", "#aaa")
-                        .selectAll("line")
-                        .data(graph.links)
-                        .enter().append("line");
-        
-        var node = svg.append("g")
-                    .attr("class", "nodes")
-        .selectAll("circle")
-                    .data(graph.nodes)
-        .enter().append("circle")
-                .attr("r", 6)
-        
-        var label = svg.append("g")
-            .attr("class", "labels")
-            .selectAll("text")
-            .data(graph.nodes)
-            .enter().append("text")
-                .attr("class", "label")
-                .text(function(d) { return d.type; });
-        
-        simulation
-            .nodes(graph.nodes)
-            .on("tick", ticked);
-        
-        simulation.force("link")
-            .links(graph.links);
-        
-        function ticked() {
-            link
-                .attr("x1", function(d) { return d.source.x; })
-                .attr("y1", function(d) { return d.source.y; })
-                .attr("x2", function(d) { return d.target.x; })
-                .attr("y2", function(d) { return d.target.y; });
-        
-            node
-                .attr("r", 20)
-                .style("fill", "#d9d9d9")
-                .style("stroke", "#969696")
-                .style("stroke-width", "2px")
-                .attr("cx", function (d) { return d.x+6; })
-                .attr("cy", function(d) { return d.y-6; });
-            
-            label
-                .attr("x", function(d) { return d.x; })
-                .attr("y", function (d) { return d.y; })
-                .style("font-size", "10px").style("fill", "#4393c3");
+const renderGraph = (graph) => {
+    let nodes  = new Array();
+    let edges = new Array();
+    graph.nodes.forEach(node => {
+        nodes.push({ 
+            id: node.index,
+            label: node.type,
+            color: node.type == "people" ? "#4ae872" : node.type == "store" ? "#f55156" : "#44aee3",
+        });
+        if(node.type != "people"){
+            node.neighbors.forEach(neighbor => {
+                edges.push({ 
+                    from: node.index, 
+                    to: neighbor.index
+                });
+            });
         }
     });
+    let nodeData = new vis.DataSet(nodes);
+    let edgeData = new vis.DataSet(edges);
+    let graphToRender = document.getElementById("graph");
+    let data = {
+        nodes: nodeData,
+        edges: edgeData
+    };
+    
+  let options = {};
+  let network = new vis.Network(graphToRender, data, options);
 };

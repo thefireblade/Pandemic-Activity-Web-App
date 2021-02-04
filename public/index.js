@@ -11,10 +11,14 @@ const selectHeuristic = (heuristic) => {
 
 const runHeuristic = () => {
   if(globals.selectHeuristic == "Greedy") {
-    console.log(runGreedy(globals.loadedGraph));
+    let graphToRender = runGreedy(globals.loadedGraph);
+    renderGraph(graphToRender);
   }
 };
 
+const renderOriginal = () => {
+  renderGraph(globals.loadedGraph);
+};
 const jsonFileSelector = document.getElementById('jsonInputFile');
 jsonFileSelector.addEventListener('change', (event) => {
   const fileList = event.target.files;
