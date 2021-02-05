@@ -1,3 +1,18 @@
+/**
+ * Shuffles array in place. Performs Fisher–Yates Shuffle and source to this code can be found here: https://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array
+ * @param {Array} a items An array containing the items.
+ */
+function shuffle(a) {
+    var j, x, i;
+    for (i = a.length - 1; i > 0; i--) {
+        j = Math.floor(Math.random() * (i + 1));
+        x = a[i];
+        a[i] = a[j];
+        a[j] = x;
+    }
+    return a;
+}
+
 const runGreedy = (disjointSetGraph) => {
     if(disjointSetGraph.vertices < 1){
         return -1
@@ -28,6 +43,7 @@ const runGreedy = (disjointSetGraph) => {
             });
         }
     });
+    shuffle(combinationsList[0]);
     let graphToRender = new DisjointSetGraph(disjointSetGraph.vertices, disjointSetGraph.numPeople, disjointSetGraph.numStores, disjointSetGraph.numGyms);
     let goal  = 0;
     for(let goal = 0; goal < combinationsList.length; goal++) {

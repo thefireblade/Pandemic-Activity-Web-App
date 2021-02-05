@@ -1,7 +1,9 @@
+*{
+    font-family: 'Lucida Console';
+}
 #title {
     font-size: xx-large;
     font-weight: bolder;
-    font-family: 'Times New Roman', Times, serif;
     text-align: center;
     margin: 1rem;
 }
@@ -11,11 +13,60 @@
 .col-item {
     margin-bottom: 0.5rem;
 }
+.container {
+    padding: 0 !important;
+}
 .file-upload-label{
     font-weight: bolder;
+}
+#error-msg{
+    font-size: larger;
+    color: red;
+}
+.hidden{
+    display: none;
 }
 #graph{
     height: 70vh;
     width: 100%;
     margin:auto;
+    margin-bottom: 1rem;
+}
+#score-tracker{
+    color: lightblue;
+    position: absolute;
+    margin-top: -3.25rem;
+    padding: 0 0.5rem 0 0.5rem;
+    font-weight: bolder;
+    font-size: 1.5rem;
+    text-shadow: 2px 2px black;
+    opacity: 0.5;
+    background-color: grey;
+    white-space: nowrap;
+}
+#score {
+    text-shadow: 2px 2px black;
+    color: lightgreen;
+    display:inline;
+}
+@media only screen and (max-width: 1080px) {
+    #score-tracker{
+        font-size: 1.25rem;
+        margin-top: -2.75rem;
+    }
+  }
+
+@media only screen and (max-width: 700px) {
+    #score-tracker{
+        font-size: 1rem;
+        margin-top: -2.5rem;
+    }
+  }
+footer {
+    font-size: large;
+    text-align: center;
+    background-color: lightgray;
+    width: 100%;
+    padding: 1rem 0 0.25rem 0;
+    font-weight: bolder;
 }

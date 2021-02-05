@@ -40,6 +40,7 @@
       <div class="row">
         <div class="col-12">
           <div id="graph"></div>
+          <div id="score-tracker">MAX CONNECTED PEOPLE SIZE : <div id="score">0</div></div>
         </div>
         <div class="col">
           <div class="col-item">
@@ -52,25 +53,42 @@
           </div>
           <div class="col-item">
             <div class="dropdown">
-              <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenu2" data-bs-toggle="dropdown" aria-expanded="false">
-                Select a Heuristic
-              </button>
-              <ul class="dropdown-menu" aria-labelledby="dropdownMenu2">
-                <li><button class="dropdown-item" onclick="selectHeuristic('Greedy');">Greedy</button></li>
-                <!-- <li><button class="dropdown-item" onclick="selectHeuristic('Louvain');">Louvain</button></li>
-                <li><button class="dropdown-item" onclick="selectHeuristic('Spectral');">Spectral</button></li> -->
-              </ul>
+              <div id="error-msg" class="hidden">You either haven't selected a heuristic or your graph is not valid!</div>
+              <div class="container">
+                <div class="row">
+                  <div class="col-sm">
+                    <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenu2" data-bs-toggle="dropdown" aria-expanded="false">
+                      Select a Heuristic
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="dropdownMenu2">
+                      <li><button class="dropdown-item" onclick="selectHeuristic('Greedy');">Greedy</button></li>
+                      <!-- <li><button class="dropdown-item" onclick="selectHeuristic('Louvain');">Louvain</button></li>
+                      <li><button class="dropdown-item" onclick="selectHeuristic('Spectral');">Spectral</button></li> -->
+                    </ul>
+                  </div>
+                  <div class="col-sm">
+                    <div class="input-group">
+                      <input id='iterations' type="number" class="form-control" aria-label="Number of iterations to run the Heuristic." min="1" step="1" value="1">
+                      <div class="input-group-append">
+                        <span class="input-group-text">Iterations</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div class='col-item'>
             <button type="button" class="btn btn-primary" onclick="runHeuristic();">Run Heuristic</button>
           </div>
           <div class='col-item'>
-            <button type="button" class="btn btn-danger" onclick="renderOriginal();">Back to Original Graph</button>
+            <button type="button" class="btn btn-danger" onclick="renderOriginal();">Reset Graph</button>
           </div>
         </div>
       </div>
     </div>
-   
+    <footer>
+        <p class="copyright">Stony Brook University Algorithms Reading Breakout Group © 2021</p>
+    </footer>
   </body>
 </html>

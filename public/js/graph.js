@@ -16,7 +16,7 @@ class DisjointSetGraph {
         this.numStores = numStores; // Number of stores in the graph
         this.numGyms = numGyms; // Number of gyms in the graph
         let i = 0;
-        this.largestConnectComponent = 1;
+        this.largestConnectComponent = numPeople > 0 ? 1 : 0;
         this.nodes = [];
         while(i < vertices){
             let componentSize = 0;
@@ -113,7 +113,7 @@ class DisjointSetGraph {
  * 
  * @param {File} file The actual file of the gml. 
  */
-const parseJSONToGraph = (file) => {  
+const parseJSONFileToGraph = (file) => {  
     // const reader = new FileReader();
     const parser = new FileReader();
     // reader.addEventListener('load', (event) => {
@@ -140,6 +140,20 @@ const parseJSONToGraph = (file) => {
     // console.log(file);
 
 };
+
+const parseJSONToGraph = (jsonObj) => {  
+    globals.loadedGraph = new DisjointSetGraph();
+    jsonObj.nodes.forEach((node)=>{
+        globals.loadedGraph.addNode(node.type);
+    });
+    jsonObj.links.forEach((edge)=>{
+        let from = parseInt(edge.from) - 1;
+        let to = parseInt(edge.to) - 1;
+        globals.loadedGraph.union(from, to);
+    });
+    renderGraph(globals.loadedGraph);
+};
+
 
 const renderGraph = (graph) => {
     let nodes  = new Array();
