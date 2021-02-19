@@ -21,6 +21,7 @@
     <!-- <script src="./js/d3.min.js"></script> -->
     
     <script src="./js/vis-network.min.js"></script>
+    <script src="./js/jLouvain.js"></script>
     <script src="./js/graph.js"></script>
     <script src="./js/heuristics.js"></script>
     <script src="./js/popper.min.js"></script>
@@ -62,8 +63,9 @@
                     </button>
                     <ul class="dropdown-menu" aria-labelledby="dropdownMenu2">
                       <li><button class="dropdown-item" onclick="selectHeuristic('Greedy');">Greedy</button></li>
-                      <!-- <li><button class="dropdown-item" onclick="selectHeuristic('Louvain');">Louvain</button></li>
-                      <li><button class="dropdown-item" onclick="selectHeuristic('Spectral');">Spectral</button></li> -->
+                      <li><button class="dropdown-item" onclick="selectHeuristic('Louvain');">Louvain</button></li>
+                      <li><button class="dropdown-item" onclick="selectHeuristic('Louvain2');">Louvain (Alters Graph)</button></li>
+                      <!-- <li><button class="dropdown-item" onclick="selectHeuristic('Spectral');">Spectral</button></li> -->
                     </ul>
                   </div>
                   <div class="col-sm">

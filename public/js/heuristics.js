@@ -70,3 +70,103 @@ const runGreedy = (disjointSetGraph) => {
     }
     return graphToRender;
 };
+/**
+* This function makes changes to the disjoint Set graph (Partitions the original graph)
+* @param {} disjointSetGraph 
+*/
+const runLouvainGreedy = (original) => {
+   let disjointSetGraph = original.clone();
+   let node_data = [];
+   let edge_data = [];
+   disjointSetGraph.nodes.forEach(node => {
+       node_data.push(node.index)
+       if(node.type == "people"){
+           node.neighbors.forEach(neighbor => {
+               edge_data.push({
+                   source: node.index,
+                   target: neighbor.index,
+                   weight: 1.0
+               });
+           });
+       }
+   });
+   let community = jLouvain()
+   .nodes(node_data)
+   .edges(edge_data)();
+   disjointSetGraph.nodes.forEach(node => {
+       let hasGym = false;
+       let hasStore = false;
+       node.neighbors.forEach((neighbor, index) => {
+           if(community[node.index] !== community[neighbor.index]){
+               node.neighbors.splice(index, 1);
+           } else {
+               if(neighbor.type == "gym"){
+                   hasGym = true;
+               } else {
+                   hasStore = true;
+               }
+           }
+       });
+       // Fix illegal people
+       if(!hasGym || !hasStore){
+           original.nodes[node.index].neighbors.forEach(neighbor =>{
+               if(neighbor.type == "gym" && !hasGym){
+                   node.neighbors.push(neighbor);
+               } else if(neighbor.type == "store" && !hasStore) {
+                   node.neighbors.push(neighbor);
+               }
+           });
+       }
+   });
+   return runGreedy(disjointSetGraph);
+};
+/**
+ * This function makes changes to the disjoint Set graph (Partitions the original graph)
+ * @param {} disjointSetGraph 
+ */
+const runLouvainGreedy2 = (disjointSetGraph) => {
+    let node_data = [];
+    let edge_data = [];
+    disjointSetGraph.nodes.forEach(node => {
+        node_data.push(node.index)
+        if(node.type == "people"){
+            node.neighbors.forEach(neighbor => {
+                edge_data.push({
+                    source: node.index,
+                    target: neighbor.index,
+                    weight: 1.0
+                });
+            });
+        }
+    });
+    let community = jLouvain()
+	.nodes(node_data)
+	.edges(edge_data)();
+    let original = disjointSetGraph.clone();
+    disjointSetGraph.nodes.forEach(node => {
+        let hasGym = false;
+        let hasStore = false;
+        node.neighbors.forEach((neighbor, index) => {
+            if(community[node.index] !== community[neighbor.index]){
+                node.neighbors.splice(index, 1);
+            } else {
+                if(neighbor.type == "gym"){
+                    hasGym = true;
+                } else {
+                    hasStore = true;
+                }
+            }
+        });
+        // Fix illegal people
+        if(!hasGym || !hasStore){
+            original.nodes[node.index].neighbors.forEach(neighbor =>{
+                if(neighbor.type == "gym" && !hasGym){
+                    node.neighbors.push(neighbor);
+                } else if(neighbor.type == "store" && !hasStore) {
+                    node.neighbors.push(neighbor);
+                }
+            });
+        }
+    });
+    return runGreedy(disjointSetGraph);
+};

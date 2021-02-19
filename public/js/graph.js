@@ -108,6 +108,24 @@ class DisjointSetGraph {
         }
         return this.largestConnectComponent;
     }
+    /**
+     * Returns a copy of the current graph
+     */
+    clone(){
+        let clone = new DisjointSetGraph(this.vertices, this.numPeople, this.numStores, this.numGyms);
+        clone.largestConnectComponent = this.largestConnectComponent;
+        clone.nodes.forEach((node, index) => {
+            let refNode = this.nodes[index];
+            node.rank = refNode.rank;
+            node.type = refNode.type;
+            node.componentSize = refNode.componentSize;
+            node.parent = clone.nodes[refNode.parent.index];
+            refNode.neighbors.forEach((neighbor) => {
+                node.neighbors.push(clone.nodes[neighbor.index]);
+            });
+        });
+        return clone;
+    }
 }
 /**
  * 
@@ -140,20 +158,6 @@ const parseJSONFileToGraph = (file) => {
     // console.log(file);
 
 };
-
-const parseJSONToGraph = (jsonObj) => {  
-    globals.loadedGraph = new DisjointSetGraph();
-    jsonObj.nodes.forEach((node)=>{
-        globals.loadedGraph.addNode(node.type);
-    });
-    jsonObj.links.forEach((edge)=>{
-        let from = parseInt(edge.from) - 1;
-        let to = parseInt(edge.to) - 1;
-        globals.loadedGraph.union(from, to);
-    });
-    renderGraph(globals.loadedGraph);
-};
-
 
 const renderGraph = (graph) => {
     let nodes  = new Array();

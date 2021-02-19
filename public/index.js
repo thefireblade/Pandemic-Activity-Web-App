@@ -1,9 +1,26 @@
 const globals = {
     selectedHeuristic: "",
-    loadedGraph: new DisjointSetGraph(0)
+    loadedGraph: new DisjointSetGraph(0),
+    storedGraph: new DisjointSetGraph(0)
 };
 const updateScore = (graph = globals.loadedGraph) => {
   document.getElementById('score').innerHTML = graph.largestConnectComponent;
+};
+
+const parseJSONToGraph = (jsonObj) => {  
+  globals.loadedGraph = new DisjointSetGraph();
+  globals.storedGraph = new DisjointSetGraph();
+  jsonObj.nodes.forEach((node)=>{
+      globals.loadedGraph.addNode(node.type);
+      globals.storedGraph.addNode(node.type);
+  });
+  jsonObj.links.forEach((edge)=>{
+      let from = parseInt(edge.from) - 1;
+      let to = parseInt(edge.to) - 1;
+      globals.loadedGraph.union(from, to);
+      globals.storedGraph.union(from, to);
+  });
+  renderGraph(globals.loadedGraph);
 };
 
 const displayError = () => {
@@ -36,10 +53,41 @@ const runHeuristic = () => {
   let bestGraph = null;
   hideError();
   if(globals.selectHeuristic == "Greedy") {
+    console.log("Running Greedy");
     try {
       let graphToRender = globals.loadedGraph;
       for(let i = 0; i < iterations; i++) {
         graphToRender = runGreedy(globals.loadedGraph);
+        if(!bestGraph || graphToRender.largestConnectComponent < bestGraph.largestConnectComponent){
+          bestGraph = graphToRender;
+        }
+      }
+      loadGraph(bestGraph);
+    } catch (err) {
+      console.log(err);
+      displayError();
+    }
+  } else if(globals.selectHeuristic == "Louvain") {
+    console.log("Running Louvain");
+    try {
+      let graphToRender = globals.loadedGraph;
+      for(let i = 0; i < iterations; i++) {
+        graphToRender = runLouvainGreedy(globals.loadedGraph);
+        if(!bestGraph || graphToRender.largestConnectComponent < bestGraph.largestConnectComponent){
+          bestGraph = graphToRender;
+        }
+      }
+      loadGraph(bestGraph);
+    } catch (err) {
+      console.log(err);
+      displayError();
+    }
+  } else if(globals.selectHeuristic == "Louvain2") {
+    console.log("Running Louvain2");
+    try {
+      let graphToRender = globals.loadedGraph;
+      for(let i = 0; i < iterations; i++) {
+        graphToRender = runLouvainGreedy2(globals.loadedGraph);
         if(!bestGraph || graphToRender.largestConnectComponent < bestGraph.largestConnectComponent){
           bestGraph = graphToRender;
         }
@@ -55,6 +103,7 @@ const runHeuristic = () => {
 };
 
 const renderOriginal = () => {
+  globals.loadedGraph = globals.storedGraph.clone();
   loadGraph(globals.loadedGraph);
 };
 const jsonFileSelector = document.getElementById('jsonInputFile');
