@@ -1,12 +1,22 @@
+/**
+ * Define a set of globals to be manipulated and changed.
+ */
 const globals = {
     selectedHeuristic: "",
     loadedGraph: new DisjointSetGraph(0),
     storedGraph: new DisjointSetGraph(0)
 };
+/**
+ * Updates the score of the current graph
+ * @param {DisjointSetGraph} graph 
+ */
 const updateScore = (graph = globals.loadedGraph) => {
   document.getElementById('score').innerHTML = graph.largestConnectComponent;
 };
-
+/**
+ * Takes a JSONObject and parses it into a DisjointSetGraph graph.
+ * @param {JSONObject} jsonObj 
+ */
 const parseJSONToGraph = (jsonObj) => {  
   globals.loadedGraph = new DisjointSetGraph();
   globals.storedGraph = new DisjointSetGraph();
@@ -101,11 +111,17 @@ const runHeuristic = () => {
     displayError();
   }
 };
-
+/**
+ * Takes the initially loaded graph and 
+ */
 const renderOriginal = () => {
   globals.loadedGraph = globals.storedGraph.clone();
   loadGraph(globals.loadedGraph);
 };
+
+/*
+* ///////////////////////// MAIN CODE TO RUN HERE ///////////////////////////////////////
+*/
 const jsonFileSelector = document.getElementById('jsonInputFile');
 jsonFileSelector.addEventListener('change', (event) => {
   hideError();

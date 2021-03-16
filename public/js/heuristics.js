@@ -12,7 +12,11 @@ function shuffle(a) {
     }
     return a;
 }
-
+/**
+ * Runs the algorithm detailed in the documentation on Greedy. This is the "Greedy Queue" implementation 
+ * @param {DisjointSetGraph} disjointSetGraph 
+ * @returns {DisjointSetGraph} A copy of the graph that contains the result of running the following heuristic.
+ */
 const runGreedy = (disjointSetGraph) => {
     if(disjointSetGraph.vertices < 1){
         return -1
@@ -71,8 +75,9 @@ const runGreedy = (disjointSetGraph) => {
     return graphToRender;
 };
 /**
-* This function makes changes to the disjoint Set graph (Partitions the original graph)
-* @param {} disjointSetGraph 
+* This function makes changes to the disjoint Set graph (Partitions the original graph using Louvain)
+* @param {DisjointSetGraph} disjointSetGraph Graph to be inputted and run.
+* @returns {DisjointSetGraph} A copy of the graph that has been partitioned and fixed.
 */
 const runLouvainGreedy = (original) => {
    let disjointSetGraph = original.clone();

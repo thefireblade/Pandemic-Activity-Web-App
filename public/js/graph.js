@@ -1,4 +1,15 @@
+/**
+ * The class that constructs the individual nodes that will be within the Disjoint Set graph.
+ */
 class DisjointVertex {
+    /**
+     * The constructor for the Disjoint Vertex class.
+     * @param {int} index The "id" of the node. This is unique in every graph.
+     * @param {int} rank The rank of the node. This will put a node at a higher priority than other nodes.
+     * @param {int} componentSize The number of nodes connected to this node. (Increments as we connect nodes)
+     * @param {String} type The type of the node. ie. "people", "gym", "store"
+     * @param {Array} neighbors The array of Disjoint Vertex Objects of neighbors connected to this node.
+     */
     constructor(index, rank, componentSize, type, neighbors = new Array()) {
         this.index = index;
         this.rank = rank;
@@ -8,8 +19,17 @@ class DisjointVertex {
         this.parent = this;
     }
 }
-
+/**
+ * The class that constructs the Disjoint graph used to solve this problem.
+ */
 class DisjointSetGraph {
+    /**
+     * The constructor for the Disjointset graph object. 
+     * @param {int} vertices The number of nodes to be initialized in the graph. You can add more using the addNode method.
+     * @param {int} numPeople The number of people to be initialized in the graph.
+     * @param {int} numStores The number of stores to be initialized in the graph.
+     * @param {int} numGyms The number of gyms to be initialized in the graph.
+     */
     constructor(vertices = 0, numPeople = 0, numStores = 0, numGyms = 0){
         this.vertices = vertices; // Total number of nodes
         this.numPeople = numPeople; // Number of people in the graph
@@ -32,6 +52,10 @@ class DisjointSetGraph {
             i++;
         }
     }
+    /**
+     * Generate and add a Disjointset vertex node to the graph
+     * @param {String} type The type that would be generated and added
+     */
     addNode(type){
         let index = this.vertices;
         this.vertices++;
@@ -128,16 +152,11 @@ class DisjointSetGraph {
     }
 }
 /**
- * 
+ * Parse the file into a Graph Object (Takes in a JSON readable file of the correct format.)
  * @param {File} file The actual file of the gml. 
  */
 const parseJSONFileToGraph = (file) => {  
-    // const reader = new FileReader();
     const parser = new FileReader();
-    // reader.addEventListener('load', (event) => {
-    //     let content = event.target.result;
-    // });
-    // reader.readAsDataURL(file); 
     parser.addEventListener('load', (event) => {
         let content = event.target.result;
         let jsonObj = JSON.parse(content);
@@ -148,17 +167,17 @@ const parseJSONFileToGraph = (file) => {
         jsonObj.links.forEach((edge)=>{
             let from = parseInt(edge.from) - 1;
             let to = parseInt(edge.to) - 1;
-            // globals.loadedGraph.find(from).neighbors.push(globals.loadedGraph.find(to));
-            // globals.loadedGraph.find(to).neighbors.push(globals.loadedGraph.find(from));
             globals.loadedGraph.union(from, to);
         });
         renderGraph(globals.loadedGraph);
     });
     parser.readAsText(file);
-    // console.log(file);
-
 };
-
+/**
+ * To render a graph on the main page. There must be a graph component with the id 'graph' on the document.
+ * This function is dependent on the library: vis-network.js
+ * @param {DisjointSetGraph} graph Graph to be rendered on the main page
+ */
 const renderGraph = (graph) => {
     let nodes  = new Array();
     let edges = new Array();
