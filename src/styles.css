@@ -89,6 +89,7 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .visual-panel {
@@ -167,9 +168,17 @@ h1 {
 .file-button {
   position: relative;
   flex: 0 0 auto;
+  min-width: 0;
   padding: 0 14px;
   color: #f8fafc;
   background: #334155;
+}
+
+.file-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app[data-theme='dark'] .file-button {
@@ -610,6 +619,19 @@ h1 {
 
   .file-button {
     width: 100%;
+    flex: 1 1 auto;
+    padding: 0 10px;
+  }
+
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .topbar-actions .icon-action {
+    width: 42px;
+    min-width: 42px;
   }
 
   .result-strip {
