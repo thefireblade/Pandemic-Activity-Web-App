@@ -1,10 +1,15 @@
 {
   "name": "pandemic-activity-web-app",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Interactive solver and visualizer for the Pandemic Activity graph problem.",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "deploy": "firebase deploy",
+    "test": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -15,5 +20,12 @@
   "bugs": {
     "url": "https://github.com/thefireblade/Pandemic-Activity-Web-App/issues"
   },
-  "homepage": "https://github.com/thefireblade/Pandemic-Activity-Web-App#readme"
+  "homepage": "https://github.com/thefireblade/Pandemic-Activity-Web-App#readme",
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "lucide-react": "^1.12.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "vite": "^8.0.10"
+  }
 }
