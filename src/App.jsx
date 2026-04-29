@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Activity, Gauge, GitBranch, Moon, Play, RotateCcw, Sun, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, Gauge, GitBranch, Moon, Play, RotateCcw, Square, Sun, Upload } from 'lucide-react';
 import GraphCanvas from './components/GraphCanvas';
 import { buildSolution, generateActivityGraph, parseGraphJson } from './lib/graph';
-import { runMultiStart } from './lib/heuristics';
+import { runMultiStartAsync } from './lib/heuristics';
 
 const SAMPLE_GRAPH = '/assets/test_graph_n=100_k=3_stores=20_gyms=20.json';
 
@@ -62,6 +62,21 @@ const ALGORITHM_OPTIONS = [
   { value: 'random', label: 'Random Baseline' },
 ];
 
+const RUN_LIMIT = 500000;
+
+const COMPLEXITY_SUMMARIES = {
+  balanced: 'Time per run: O(P * Gp * Sp * α(N)). Space: O(N + P).',
+  degree: 'Time per run: O(P log P + P * Gp * Sp * α(N)). Space: O(N + P).',
+  louvain: 'Time per run: O(L * E + P * Gp * Sp * α(N)). Space: O(N + E).',
+  louvainLoad: 'Time per run: O(L * E + P * Gp * Sp * α(N)). Space: O(N + E).',
+  load: 'Time per run: O(P * Gp * Sp * α(N)). Space: O(N + P).',
+  leastLoaded: 'Time per run: O(P * (Gp + Sp)). Space: O(N + P).',
+  local: 'Time per run: roughly O(P * Gp * Sp * P) on a bounded subset. Space: O(N + P).',
+  anneal: 'Time per run: O(S * P * α(N)). Space: O(N + P).',
+  legacy: 'Time per run: O(P * (Gp + Sp) * α(N)). Space: O(N + P).',
+  random: 'Time per run: O(P * α(N)). Space: O(N + P).',
+};
+
 function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
 }
@@ -75,11 +90,54 @@ function NumberField({ label, help, min, max, value, onChange }) {
         min={min}
         max={max}
         value={value}
-        onChange={(event) => onChange(Math.min(max, Math.max(min, Number(event.target.value) || min)))}
+        onChange={(event) => onChange(event.target.value)}
       />
       {help ? <em>{help}</em> : null}
     </label>
   );
+}
+
+function parseIntegerField(value, label, min, max) {
+  if (value === '' || value === null || value === undefined) {
+    throw new Error(`${label} is required.`);
+  }
+  const number = Number(value);
+  if (!Number.isInteger(number)) {
+    throw new Error(`${label} must be a whole number.`);
+  }
+  if (number < min || number > max) {
+    throw new Error(`${label} must be between ${formatNumber(min)} and ${formatNumber(max)}.`);
+  }
+  return number;
+}
+
+function validateGraphConfig(config) {
+  const parsed = {
+    people: parseIntegerField(config.people, 'People', 1, 2000),
+    gyms: parseIntegerField(config.gyms, 'Gyms', 1, 500),
+    stores: parseIntegerField(config.stores, 'Stores', 1, 500),
+    gymsPerPerson: parseIntegerField(config.gymsPerPerson, 'Gym choices', 1, 500),
+    storesPerPerson: parseIntegerField(config.storesPerPerson, 'Store choices', 1, 500),
+    seed: parseIntegerField(config.seed, 'Seed', 1, 2147483647),
+  };
+
+  if (parsed.gymsPerPerson > parsed.gyms) {
+    throw new Error('Gym choices cannot be greater than the number of gyms.');
+  }
+  if (parsed.storesPerPerson > parsed.stores) {
+    throw new Error('Store choices cannot be greater than the number of stores.');
+  }
+
+  return parsed;
+}
+
+function getProjectedEdges(config) {
+  try {
+    const parsed = validateGraphConfig(config);
+    return parsed.people * (parsed.gymsPerPerson + parsed.storesPerPerson);
+  } catch {
+    return null;
+  }
 }
 
 function getConfigFromGraph(graph, fallback) {
@@ -142,6 +200,8 @@ export default function App() {
   });
   const [error, setError] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const [runProgress, setRunProgress] = useState(null);
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     fetch(SAMPLE_GRAPH)
@@ -183,20 +243,40 @@ export default function App() {
     reader.readAsText(file);
   }
 
-  function runSolver() {
+  async function runSolver() {
     if (!graph) return;
+    let runs;
+    try {
+      runs = parseIntegerField(iterations, 'Runs', 1, RUN_LIMIT);
+    } catch (runError) {
+      setError(runError.message);
+      return;
+    }
     setIsRunning(true);
+    setRunProgress({ completed: 0, total: runs, bestScore: null, elapsedMs: 0 });
     setError('');
+    abortControllerRef.current = new AbortController();
 
-    window.setTimeout(() => {
-      try {
-        setSolution(runMultiStart(graph, algorithm, iterations));
-      } catch (runError) {
+    try {
+      const nextSolution = await runMultiStartAsync(graph, algorithm, runs, {
+        signal: abortControllerRef.current.signal,
+        timeSliceMs: 18,
+        onProgress: setRunProgress,
+      });
+      setSolution(nextSolution);
+    } catch (runError) {
+      if (runError.name !== 'AbortError') {
         setError(runError.message);
-      } finally {
-        setIsRunning(false);
       }
-    }, 0);
+    } finally {
+      abortControllerRef.current = null;
+      setIsRunning(false);
+      setRunProgress(null);
+    }
+  }
+
+  function cancelRun() {
+    abortControllerRef.current?.abort();
   }
 
   function resetGraph() {
@@ -206,24 +286,16 @@ export default function App() {
   }
 
   function updateGraphConfig(key, value) {
-    setGraphConfig((current) => {
-      const next = { ...current, [key]: value };
-      if (key === 'gyms') {
-        next.gymsPerPerson = Math.min(next.gymsPerPerson, value);
-      }
-      if (key === 'stores') {
-        next.storesPerPerson = Math.min(next.storesPerPerson, value);
-      }
-      return next;
-    });
+    setGraphConfig((current) => ({ ...current, [key]: value }));
   }
 
   function generateGraph() {
     try {
-      const nextGraph = generateActivityGraph(graphConfig);
+      const parsedConfig = validateGraphConfig(graphConfig);
+      const nextGraph = generateActivityGraph(parsedConfig);
       setGraph(nextGraph);
       setSolution(buildSolution(nextGraph, nextGraph.links, { algorithm: 'Generated graph' }));
-      setGraphConfig((current) => ({ ...current, seed: current.seed + 1 }));
+      setGraphConfig((current) => ({ ...current, seed: parsedConfig.seed + 1 }));
       setError('');
     } catch (generateError) {
       setError(generateError.message);
@@ -239,15 +311,20 @@ export default function App() {
     );
   }
 
-  const projectedEdges = graphConfig.people * (graphConfig.gymsPerPerson + graphConfig.storesPerPerson);
+  const projectedEdges = getProjectedEdges(graphConfig);
   const algorithmSummary = ALGORITHM_SUMMARIES[algorithm];
 
   return (
     <main className="app" data-theme={theme}>
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Pandemic Activity Problem</p>
-          <h1>Activity graph solver</h1>
+        <div className="brand-lockup">
+          <span className="brand-logo" aria-hidden="true">
+            <img src="/jason-logo.png" alt="" />
+          </span>
+          <div>
+            <p className="eyebrow">Pandemic Activity Problem</p>
+            <h1>Activity graph solver</h1>
+          </div>
         </div>
         <div className="topbar-actions">
           <button
@@ -320,7 +397,7 @@ export default function App() {
               label="Gym choices"
               help="Gym options each person can choose from."
               min={1}
-              max={graphConfig.gyms}
+              max={500}
               value={graphConfig.gymsPerPerson}
               onChange={(value) => updateGraphConfig('gymsPerPerson', value)}
             />
@@ -328,14 +405,14 @@ export default function App() {
               label="Store choices"
               help="Store options each person can choose from."
               min={1}
-              max={graphConfig.stores}
+              max={500}
               value={graphConfig.storesPerPerson}
               onChange={(value) => updateGraphConfig('storesPerPerson', value)}
             />
             <NumberField label="Seed" help="Same seed recreates the same graph." min={1} max={2147483647} value={graphConfig.seed} onChange={(value) => updateGraphConfig('seed', value)} />
           </div>
           <div className="graph-editor-footer">
-            <span>Next generated graph: {formatNumber(projectedEdges)} edges</span>
+            <span>{projectedEdges === null ? 'Fix graph values to preview edges' : `Next generated graph: ${formatNumber(projectedEdges)} edges`}</span>
             <button className="secondary-action compact-action" onClick={generateGraph}>
               Apply graph
             </button>
@@ -345,7 +422,7 @@ export default function App() {
         <section className="panel controls">
           <label className="field">
             <span>Algorithm</span>
-            <select value={algorithm} onChange={(event) => setAlgorithm(event.target.value)}>
+            <select value={algorithm} disabled={isRunning} onChange={(event) => setAlgorithm(event.target.value)}>
               {ALGORITHM_OPTIONS.map((option) => (
                 <option value={option.value} key={option.value}>
                   {option.label}
@@ -361,19 +438,39 @@ export default function App() {
               min="1"
               max="1000"
               value={iterations}
-              onChange={(event) => setIterations(Math.max(1, Number(event.target.value)))}
+              disabled={isRunning}
+              onChange={(event) => setIterations(event.target.value)}
             />
             <em>Runs the algorithm with different random orderings and keeps the best score.</em>
           </label>
+
+          {runProgress ? (
+            <div className="run-progress" aria-live="polite">
+              <div>
+                <span>
+                  Run {formatNumber(runProgress.completed)} of {formatNumber(runProgress.total)}
+                </span>
+                <strong>
+                  {runProgress.bestScore === null ? 'Finding first result' : `Best score ${formatNumber(runProgress.bestScore)}`}
+                </strong>
+              </div>
+              <progress value={runProgress.completed} max={runProgress.total} />
+            </div>
+          ) : null}
 
           <div className="button-row">
             <button className="primary-action" disabled={isRunning} onClick={runSolver}>
               <Play size={17} />
               <span>{isRunning ? 'Running' : 'Run'}</span>
             </button>
-            <button className="icon-action" aria-label="Reset graph" onClick={resetGraph}>
-              <RotateCcw size={17} />
+            <button className="icon-action" aria-label={isRunning ? 'Cancel run' : 'Reset graph'} onClick={isRunning ? cancelRun : resetGraph}>
+              {isRunning ? <Square size={17} /> : <RotateCcw size={17} />}
             </button>
+          </div>
+
+          <div className="complexity-note">
+            <span>Complexity</span>
+            <strong>{COMPLEXITY_SUMMARIES[algorithm]}</strong>
           </div>
 
           <div className="run-meta">

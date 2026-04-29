@@ -31,6 +31,7 @@ This is a graph-risk proxy, not a full disease-spread simulation. The best possi
 - Editable graph controls for people, gyms, stores, choices, seed, and runs.
 - JSON graph import.
 - Light and dark themes.
+- Header logo and favicon using Jason Huang's project branding.
 - Multiple assignment algorithms and baselines.
 
 ## Quick Start
@@ -90,6 +91,8 @@ Solver controls:
 - `Algorithm`: selects the assignment strategy.
 - `Runs`: repeats the selected algorithm with different random orderings or tie-breaks, then keeps the lowest score.
 
+Long runs are chunked in the browser. The UI updates progress between runs and lets you cancel, so large run counts do not freeze the page as aggressively as one synchronous loop.
+
 ## Graph JSON Format
 
 Imported files must be JSON objects with `nodes` and `links`.
@@ -130,6 +133,17 @@ The visualization groups nodes into Louvain-style communities for every solver r
 
 All algorithms are implemented in `src/lib/heuristics.js`.
 
+Notation used below:
+
+- `P`: number of people.
+- `N`: total nodes.
+- `E`: graph edges.
+- `Gp`: gym choices per person.
+- `Sp`: store choices per person.
+- `L`: Louvain passes.
+- `S`: simulated annealing mutation steps.
+- `α(N)`: inverse Ackermann factor from disjoint set operations, effectively tiny in practice.
+
 ### Balanced Greedy
 
 Visits people in randomized order. For each person, tests every valid `(gym, store)` pair and chooses the pair that:
@@ -139,41 +153,81 @@ Visits people in randomized order. For each person, tests every valid `(gym, sto
 3. Breaks remaining ties by lower combined activity load.
 4. Uses seeded random tie-breaking if still tied.
 
+Time per run: `O(P * Gp * Sp * α(N))`.
+
+Space: `O(N + P)`.
+
 ### Degree Ordered Greedy
 
 Balanced Greedy, but people with the fewest valid `(gym, store)` pair options are assigned first.
+
+Time per run: `O(P log P + P * Gp * Sp * α(N))`.
+
+Space: `O(N + P)`.
 
 ### Louvain + Balanced Greedy
 
 Detects communities first, then prefers same-community gyms and stores where possible before running Balanced Greedy on the filtered choices.
 
+Time per run: `O(L * E + P * Gp * Sp * α(N))`.
+
+Space: `O(N + E)`.
+
 ### Louvain + Load Balanced
 
 Detects communities first, then prefers same-community gyms and stores where possible before running the load-balanced objective.
+
+Time per run: `O(L * E + P * Gp * Sp * α(N))`.
+
+Space: `O(N + E)`.
 
 ### Load Balanced Greedy
 
 Tests every valid `(gym, store)` pair, but prioritizes even attendance across activities before using connected-group size as a tie-breaker.
 
+Time per run: `O(P * Gp * Sp * α(N))`.
+
+Space: `O(N + P)`.
+
 ### Least Loaded
 
 Chooses the currently least-used gym and currently least-used store independently for each person. Useful as a simple crowd-balancing baseline.
+
+Time per run: `O(P * (Gp + Sp))`.
+
+Space: `O(N + P)`.
 
 ### Local Improvement
 
 Starts from Balanced Greedy, then tries replacing individual people’s chosen gym/store pair when the replacement improves the score.
 
+Time per run: roughly `O(P * Gp * Sp * P)` on a bounded subset of people.
+
+Space: `O(N + P)`.
+
 ### Simulated Annealing
 
 Starts from a random valid assignment, repeatedly mutates one person’s pair, and sometimes accepts worse intermediate scores to escape local traps.
+
+Time per run: `O(S * P * α(N))`.
+
+Space: `O(N + P)`.
 
 ### Legacy Greedy
 
 Chooses one activity type first, adds its best single edge, then adds the best single edge for the other activity type. This is included as a comparison to the newer paired greedy strategies.
 
+Time per run: `O(P * (Gp + Sp) * α(N))`.
+
+Space: `O(N + P)`.
+
 ### Random Valid Assignment
 
 Chooses one valid gym and one valid store uniformly at random for each person. This is the unoptimized baseline.
+
+Time per run: `O(P * α(N))`.
+
+Space: `O(N + P)`.
 
 ## Project Layout
 

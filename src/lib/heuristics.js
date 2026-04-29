@@ -485,34 +485,33 @@ export function solveSimulatedAnnealing(graph, seed = Date.now()) {
   return buildSolution(graph, bestEdges, { algorithm: 'Simulated Annealing', seed });
 }
 
-export function runMultiStart(graph, algorithm, iterations) {
-  const solvers = {
-    balanced: solveBalancedGreedy,
-    degree: solveDegreeOrderedGreedy,
-    leastLoaded: solveLeastLoaded,
-    load: solveLoadBalanced,
-    legacy: solveLegacyGreedy,
-    louvain: solveLouvainBalanced,
-    louvainLoad: solveLouvainLoadBalanced,
-    local: solveLocalImprovement,
-    random: solveRandomAssignment,
-    anneal: solveSimulatedAnnealing,
-  };
-  const solver = solvers[algorithm] || solveBalancedGreedy;
-  const startedAt = performance.now();
-  let bestSolution = null;
+const SOLVERS = {
+  balanced: solveBalancedGreedy,
+  degree: solveDegreeOrderedGreedy,
+  leastLoaded: solveLeastLoaded,
+  load: solveLoadBalanced,
+  legacy: solveLegacyGreedy,
+  louvain: solveLouvainBalanced,
+  louvainLoad: solveLouvainLoadBalanced,
+  local: solveLocalImprovement,
+  random: solveRandomAssignment,
+  anneal: solveSimulatedAnnealing,
+};
 
-  for (let index = 0; index < iterations; index += 1) {
-    const solution = solver(graph, Date.now() + index * 2654435761);
-    if (
-      !bestSolution ||
-      solution.largestPeopleComponent < bestSolution.largestPeopleComponent ||
-      (solution.largestPeopleComponent === bestSolution.largestPeopleComponent &&
-        solution.selectedEdges.length < bestSolution.selectedEdges.length)
-    ) {
-      bestSolution = solution;
-    }
-  }
+function getSolver(algorithm) {
+  return SOLVERS[algorithm] || solveBalancedGreedy;
+}
+
+function shouldReplaceBest(solution, bestSolution) {
+  return (
+    !bestSolution ||
+    solution.largestPeopleComponent < bestSolution.largestPeopleComponent ||
+    (solution.largestPeopleComponent === bestSolution.largestPeopleComponent &&
+      solution.selectedEdges.length < bestSolution.selectedEdges.length)
+  );
+}
+
+function finalizeSolution(graph, bestSolution, iterations, runtimeMs) {
   const visualizationCommunities = bestSolution.meta.communities || detectLouvainCommunities(graph, bestSolution.meta.seed);
 
   return {
@@ -523,7 +522,65 @@ export function runMultiStart(graph, algorithm, iterations) {
       communityCount: bestSolution.meta.communityCount || new Set(visualizationCommunities).size,
       clusteringRole: bestSolution.meta.communities ? 'solver' : 'visualization',
       iterations,
-      runtimeMs: performance.now() - startedAt,
+      runtimeMs,
     },
   };
+}
+
+function yieldToBrowser() {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
+export function runMultiStart(graph, algorithm, iterations) {
+  const solver = getSolver(algorithm);
+  const startedAt = performance.now();
+  let bestSolution = null;
+
+  for (let index = 0; index < iterations; index += 1) {
+    const solution = solver(graph, Date.now() + index * 2654435761);
+    if (shouldReplaceBest(solution, bestSolution)) {
+      bestSolution = solution;
+    }
+  }
+  return finalizeSolution(graph, bestSolution, iterations, performance.now() - startedAt);
+}
+
+export async function runMultiStartAsync(graph, algorithm, iterations, options = {}) {
+  const solver = getSolver(algorithm);
+  const startedAt = performance.now();
+  const total = Math.max(1, Math.floor(iterations));
+  const timeSliceMs = options.timeSliceMs || 24;
+  let lastYieldAt = performance.now();
+  let bestSolution = null;
+
+  for (let index = 0; index < total; index += 1) {
+    if (options.signal?.aborted) {
+      throw new DOMException('Algorithm run cancelled.', 'AbortError');
+    }
+
+    const solution = solver(graph, Date.now() + index * 2654435761);
+    if (shouldReplaceBest(solution, bestSolution)) {
+      bestSolution = solution;
+    }
+
+    options.onProgress?.({
+      completed: index + 1,
+      total,
+      bestScore: bestSolution.largestPeopleComponent,
+      elapsedMs: performance.now() - startedAt,
+    });
+
+    if (performance.now() - lastYieldAt >= timeSliceMs) {
+      await yieldToBrowser();
+      lastYieldAt = performance.now();
+    }
+  }
+
+  return finalizeSolution(graph, bestSolution, total, performance.now() - startedAt);
 }
