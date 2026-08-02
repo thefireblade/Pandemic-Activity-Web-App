@@ -202,6 +202,14 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [runProgress, setRunProgress] = useState(null);
   const abortControllerRef = useRef(null);
+  const graphRef = useRef(null);
+
+  // Lets an in-flight run tell whether the graph it was started on is still the
+  // one on screen; scoring one graph while drawing another reports a score the
+  // visualization cannot explain.
+  useEffect(() => {
+    graphRef.current = graph;
+  }, [graph]);
 
   useEffect(() => {
     fetch(SAMPLE_GRAPH)
@@ -231,6 +239,7 @@ export default function App() {
     reader.onload = () => {
       try {
         const parsed = parseGraphJson(JSON.parse(reader.result));
+        abortControllerRef.current?.abort();
         setGraph(parsed);
         setSolution(buildSolution(parsed, parsed.links, { algorithm: 'Original graph' }));
         setGraphConfig((current) => getConfigFromGraph(parsed, current));
@@ -252,18 +261,21 @@ export default function App() {
       setError(runError.message);
       return;
     }
+    const targetGraph = graph;
     setIsRunning(true);
     setRunProgress({ completed: 0, total: runs, bestScore: null, elapsedMs: 0 });
     setError('');
     abortControllerRef.current = new AbortController();
 
     try {
-      const nextSolution = await runMultiStartAsync(graph, algorithm, runs, {
+      const nextSolution = await runMultiStartAsync(targetGraph, algorithm, runs, {
         signal: abortControllerRef.current.signal,
         timeSliceMs: 18,
         onProgress: setRunProgress,
       });
-      setSolution(nextSolution);
+      if (graphRef.current === targetGraph) {
+        setSolution(nextSolution);
+      }
     } catch (runError) {
       if (runError.name !== 'AbortError') {
         setError(runError.message);
@@ -293,6 +305,7 @@ export default function App() {
     try {
       const parsedConfig = validateGraphConfig(graphConfig);
       const nextGraph = generateActivityGraph(parsedConfig);
+      abortControllerRef.current?.abort();
       setGraph(nextGraph);
       setSolution(buildSolution(nextGraph, nextGraph.links, { algorithm: 'Generated graph' }));
       setGraphConfig((current) => ({ ...current, seed: parsedConfig.seed + 1 }));

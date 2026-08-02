@@ -97,11 +97,12 @@ function layoutByCommunity(graph, communities, width, height) {
 
     Object.entries(byType).forEach(([type, typeNodes]) => {
       typeNodes.forEach((node, index) => {
-        const progress = typeNodes.length <= 1 ? 0.5 : index / (typeNodes.length - 1);
-        const angle = progress * Math.PI * 2;
+        // Spread over [0, 2pi) rather than [0, 2pi]: sharing both endpoints would
+        // draw the first and last node of the type on identical coordinates.
+        const angle = (index / Math.max(1, typeNodes.length)) * Math.PI * 2;
         const spread = Math.max(7, radius * 0.46);
         positions.set(node.index, {
-          x: centerX + typeOffsets[type] + Math.cos(angle) * spread * 0.3,
+          x: centerX + typeOffsets[type] + Math.cos(angle) * spread * 0.42,
           y: centerY + Math.sin(angle) * spread,
         });
       });
