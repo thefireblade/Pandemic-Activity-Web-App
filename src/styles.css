@@ -288,6 +288,16 @@ h1 {
   font-size: 0.8rem;
 }
 
+.cluster-legend strong:not(:first-child) {
+  margin-top: 6px;
+}
+
+.cluster-legend .legend-more {
+  padding-left: 17px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
 .cluster-legend span {
   display: flex;
   align-items: center;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NODE_TYPES } from '../lib/graph';
+import { getPeopleComponents, NODE_TYPES } from '../lib/graph';
 
 const TYPE_COLORS = {
   [NODE_TYPES.people]: { fill: '#22c55e', stroke: '#166534', label: '#052e16' },
@@ -77,6 +77,7 @@ function layoutByCommunity(graph, communities, width, height) {
 
   communityIds.forEach((communityId, communityIndex) => {
     const nodes = graph.nodes.filter((node) => communities[node.index] === communityId);
+    const peopleCount = nodes.filter((node) => node.type === NODE_TYPES.people).length;
     const column = communityIndex % columns;
     const row = Math.floor(communityIndex / columns);
     const centerX = padding + cellWidth * (column + 0.5);
@@ -108,7 +109,7 @@ function layoutByCommunity(graph, communities, width, height) {
       });
     });
 
-    bounds.set(communityId, { x: centerX, y: centerY, radius: radius + 18, count: nodes.length });
+    bounds.set(communityId, { x: centerX, y: centerY, radius: radius + 18, count: nodes.length, peopleCount });
   });
 
   return { positions, bounds };
@@ -139,6 +140,12 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
 
   const communities = solution?.meta?.communities;
   const isClusterView = Array.isArray(communities) && communities.length === graph.nodes.length;
+
+  // The scored group: the people the chosen edges actually link together.
+  const scoredGroup = useMemo(
+    () => getPeopleComponents(graph, solution?.selectedEdges || []),
+    [graph, solution],
+  );
   const canvasColors =
     theme === 'dark'
       ? {
@@ -147,6 +154,7 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
           edge: 'rgba(148, 163, 184, 0.12)',
           selectedEdge: 'rgba(226, 232, 240, 0.7)',
           hover: '#f8fafc',
+          highlight: '#f59e0b',
         }
       : {
           background: '#f8fafc',
@@ -154,6 +162,7 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
           edge: 'rgba(148, 163, 184, 0.16)',
           selectedEdge: 'rgba(15, 23, 42, 0.62)',
           hover: '#020617',
+          highlight: '#b45309',
         };
 
   const layout = useMemo(() => {
@@ -164,13 +173,15 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
   }, [communities, graph, isClusterView, size.height, size.width]);
 
   const positions = layout.positions;
-  const visibleClusters = useMemo(() => {
+  const rankedClusters = useMemo(() => {
     if (!isClusterView) return [];
     return Array.from(layout.bounds.entries())
       .map(([community, bounds]) => ({ community, ...bounds }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
+      .sort((a, b) => b.peopleCount - a.peopleCount);
   }, [isClusterView, layout.bounds]);
+
+  const visibleClusters = rankedClusters.slice(0, 8);
+  const hiddenClusterCount = rankedClusters.length - visibleClusters.length;
 
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) => {
@@ -216,11 +227,20 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
       });
     }
 
+    // Edges of the scored group are drawn last so the group the score refers to
+    // stays traceable on top of everything else.
+    const scoredEdges = [];
+
     graph.links.forEach((edge) => {
       const from = positions.get(edge.from);
       const to = positions.get(edge.to);
       const [a, b] = edge.from < edge.to ? [edge.from, edge.to] : [edge.to, edge.from];
       const isSelected = selectedKeys.has(`${a}:${b}`);
+
+      if (isSelected && scoredGroup.roots[edge.from] === scoredGroup.largestRoot) {
+        scoredEdges.push({ from, to });
+        return;
+      }
 
       context.beginPath();
       context.moveTo(from.x, from.y);
@@ -233,6 +253,15 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
         context.strokeStyle = canvasColors.edge;
       }
       context.lineWidth = isSelected ? 2.2 : 0.8;
+      context.stroke();
+    });
+
+    context.strokeStyle = canvasColors.highlight;
+    context.lineWidth = 2.6;
+    scoredEdges.forEach(({ from, to }) => {
+      context.beginPath();
+      context.moveTo(from.x, from.y);
+      context.lineTo(to.x, to.y);
       context.stroke();
     });
 
@@ -257,18 +286,29 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
         context.fillStyle = typeColors.fill;
         context.fill();
       }
+
+      // Ring only people, so counting rings gives exactly the score.
+      if (node.type === NODE_TYPES.people && scoredGroup.roots[node.index] === scoredGroup.largestRoot) {
+        context.beginPath();
+        context.arc(position.x, position.y, radius + 3.5, 0, Math.PI * 2);
+        context.strokeStyle = canvasColors.highlight;
+        context.lineWidth = 2;
+        context.stroke();
+      }
     });
 
     context.font = '600 12px Inter, system-ui, sans-serif';
     context.fillStyle = canvasColors.mutedText;
     if (isClusterView) {
       context.fillText(`${solution.meta.communityCount} visual communities`, 18, 28);
+      context.fillStyle = canvasColors.highlight;
+      context.fillText(`Highlighted: biggest linked group, ${scoredGroup.largestPeople} people = score`, 18, 46);
     } else {
       context.fillText('Gyms', 18, 28);
       context.fillText('People', size.width / 2 - 20, 28);
       context.fillText('Stores', size.width - 62, 28);
     }
-  }, [canvasColors, communities, graph, hoveredNode, isClusterView, layout.bounds, positions, selectedKeys, size, solution]);
+  }, [canvasColors, communities, graph, hoveredNode, isClusterView, layout.bounds, positions, scoredGroup, selectedKeys, size, solution]);
 
   function handlePointerMove(event) {
     const point = getCanvasPoint(canvasRef.current, event);
@@ -307,13 +347,19 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
       ) : null}
       {isClusterView ? (
         <div className="cluster-legend">
-          <strong>Communities</strong>
+          <strong>Biggest linked group</strong>
+          <span>
+            <i style={{ background: canvasColors.highlight }} />
+            {scoredGroup.largestPeople} people = score
+          </span>
+          <strong>Communities (people)</strong>
           {visibleClusters.map((cluster) => (
             <span key={cluster.community}>
               <i style={{ background: getClusterColor(cluster.community) }} />
-              C{cluster.community + 1}: {cluster.count}
+              C{cluster.community + 1}: {cluster.peopleCount}
             </span>
           ))}
+          {hiddenClusterCount > 0 ? <span className="legend-more">+{hiddenClusterCount} more</span> : null}
         </div>
       ) : null}
     </div>

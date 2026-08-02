@@ -154,6 +154,36 @@ export function buildSolution(graph, selectedEdges, meta = {}) {
   };
 }
 
+// Groups nodes by the components the *chosen* edges form, which is what the
+// score measures. Louvain communities partition the graph by every possible
+// edge instead, so they cannot be used to read the score off the picture.
+export function getPeopleComponents(graph, selectedEdges) {
+  const dsu = new DisjointSet(graph.nodes);
+  selectedEdges.forEach((edge) => dsu.union(edge.from, edge.to));
+
+  const roots = graph.nodes.map((node) => dsu.find(node.index));
+  const peopleByRoot = new Map();
+
+  graph.nodes.forEach((node) => {
+    if (node.type !== NODE_TYPES.people) {
+      return;
+    }
+    const root = roots[node.index];
+    peopleByRoot.set(root, (peopleByRoot.get(root) || 0) + 1);
+  });
+
+  let largestRoot = null;
+  let largestPeople = 0;
+  peopleByRoot.forEach((count, root) => {
+    if (count > largestPeople) {
+      largestPeople = count;
+      largestRoot = root;
+    }
+  });
+
+  return { roots, peopleByRoot, largestRoot, largestPeople };
+}
+
 export function validateGraph(graph) {
   const invalidPeople = graph.nodes
     .filter((node) => node.type === NODE_TYPES.people)
