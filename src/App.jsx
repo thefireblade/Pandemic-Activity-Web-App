@@ -360,7 +360,10 @@ export default function App() {
           <div className="visual-panel-header">
             <div>
               <strong>Visualization</strong>
-              <span>Communities show groups linked by possible shared activities; selected edges show the current assignment.</span>
+              <span>
+                Each bubble is one disjoint set left after the unchosen edges are dropped. Everyone keeps exactly one gym
+                and one store; the score is the people count of the biggest set.
+              </span>
             </div>
             <div className="method-summary">
               <strong>{algorithmSummary.title}</strong>
@@ -488,18 +491,13 @@ export default function App() {
 
           <div className="run-meta">
             <span>{solution.meta.algorithm}</span>
-            <strong>
-              {solution.meta.communityCount
-                ? `${solution.meta.communityCount} clusters`
-                : solution.meta.runtimeMs
-                  ? `${solution.meta.runtimeMs.toFixed(1)} ms`
-                  : 'Ready'}
-            </strong>
+            <strong>{solution.meta.runtimeMs ? `${solution.meta.runtimeMs.toFixed(1)} ms` : 'Ready'}</strong>
           </div>
-          {solution.meta.communityCount ? (
+          {/* Louvain clusters are a solver input, not the disjoint sets the score counts. */}
+          {solution.meta.clusteringRole === 'solver' ? (
             <div className="run-meta">
-              <span>Runtime</span>
-              <strong>{solution.meta.runtimeMs ? `${solution.meta.runtimeMs.toFixed(1)} ms` : 'Ready'}</strong>
+              <span>Solver clusters</span>
+              <strong>{solution.meta.communityCount}</strong>
             </div>
           ) : null}
           <div className="run-meta">

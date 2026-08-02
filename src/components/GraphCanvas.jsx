@@ -22,8 +22,10 @@ const CLUSTER_COLORS = [
   '#ca8a04',
 ];
 
-function getClusterColor(community) {
-  return CLUSTER_COLORS[community % CLUSTER_COLORS.length];
+const UNUSED_GROUP = -1;
+
+function getClusterColor(group) {
+  return CLUSTER_COLORS[group % CLUSTER_COLORS.length];
 }
 
 function hexToRgba(hex, alpha) {
@@ -34,52 +36,47 @@ function hexToRgba(hex, alpha) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
-function layoutByType(graph, width, height) {
-  const paddingX = Math.max(56, width * 0.07);
-  const paddingY = Math.max(46, height * 0.08);
-  const lanes = {
-    [NODE_TYPES.gym]: paddingX,
-    [NODE_TYPES.people]: width / 2,
-    [NODE_TYPES.store]: width - paddingX,
+/**
+ * Partitions nodes into the disjoint sets the chosen edges leave behind, which
+ * is the thing the score measures: the score is the people count of the biggest
+ * set. Sets are numbered by people descending, so set 1 is always the score.
+ * Activities nobody chose end up in no set at all and are parked separately.
+ */
+function getDisjointSets(graph, selectedEdges) {
+  const { roots, peopleByRoot, largestRoot, largestPeople } = getPeopleComponents(graph, selectedEdges);
+
+  const populated = [...peopleByRoot.entries()].sort((a, b) => b[1] - a[1]);
+  const groupByRoot = new Map(populated.map(([root], group) => [root, group]));
+  const groupOf = roots.map((root) => (groupByRoot.has(root) ? groupByRoot.get(root) : UNUSED_GROUP));
+
+  return {
+    groupOf,
+    peopleByGroup: populated.map(([, people]) => people),
+    setCount: populated.length,
+    largestGroup: groupByRoot.get(largestRoot) ?? UNUSED_GROUP,
+    largestPeople,
+    unusedCount: groupOf.filter((group) => group === UNUSED_GROUP).length,
   };
-  const byType = {
-    [NODE_TYPES.gym]: [],
-    [NODE_TYPES.people]: [],
-    [NODE_TYPES.store]: [],
-  };
-
-  graph.nodes.forEach((node) => byType[node.type].push(node));
-
-  const positions = new Map();
-  Object.entries(byType).forEach(([type, nodes]) => {
-    nodes.forEach((node, index) => {
-      const progress = nodes.length <= 1 ? 0.5 : index / (nodes.length - 1);
-      const wave = Math.sin(progress * Math.PI * 6) * (type === NODE_TYPES.people ? 18 : 10);
-      positions.set(node.index, {
-        x: lanes[type] + wave,
-        y: paddingY + progress * (height - paddingY * 2),
-      });
-    });
-  });
-
-  return positions;
 }
 
-function layoutByCommunity(graph, communities, width, height) {
+function layoutBySet(graph, sets, width, height) {
   const padding = 58;
-  const communityIds = Array.from(new Set(communities)).sort((a, b) => a - b);
-  const columns = Math.ceil(Math.sqrt(communityIds.length));
-  const rows = Math.ceil(communityIds.length / columns);
+  const groupIds = [...Array(sets.setCount).keys()];
+  if (sets.unusedCount > 0) {
+    groupIds.push(UNUSED_GROUP);
+  }
+
+  const columns = Math.ceil(Math.sqrt(groupIds.length));
+  const rows = Math.ceil(groupIds.length / columns);
   const cellWidth = (width - padding * 2) / Math.max(1, columns);
   const cellHeight = (height - padding * 2) / Math.max(1, rows);
   const positions = new Map();
   const bounds = new Map();
 
-  communityIds.forEach((communityId, communityIndex) => {
-    const nodes = graph.nodes.filter((node) => communities[node.index] === communityId);
-    const peopleCount = nodes.filter((node) => node.type === NODE_TYPES.people).length;
-    const column = communityIndex % columns;
-    const row = Math.floor(communityIndex / columns);
+  groupIds.forEach((groupId, slot) => {
+    const nodes = graph.nodes.filter((node) => sets.groupOf[node.index] === groupId);
+    const column = slot % columns;
+    const row = Math.floor(slot / columns);
     const centerX = padding + cellWidth * (column + 0.5);
     const centerY = padding + cellHeight * (row + 0.5);
     const radius = Math.max(26, Math.min(cellWidth, cellHeight) * 0.34);
@@ -109,7 +106,13 @@ function layoutByCommunity(graph, communities, width, height) {
       });
     });
 
-    bounds.set(communityId, { x: centerX, y: centerY, radius: radius + 18, count: nodes.length, peopleCount });
+    bounds.set(groupId, {
+      x: centerX,
+      y: centerY,
+      radius: radius + 18,
+      count: nodes.length,
+      peopleCount: groupId === UNUSED_GROUP ? 0 : sets.peopleByGroup[groupId],
+    });
   });
 
   return { positions, bounds };
@@ -129,59 +132,40 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
   const [size, setSize] = useState({ width: 900, height: 560 });
   const [hoveredNode, setHoveredNode] = useState(null);
 
-  const selectedKeys = useMemo(() => {
-    const keys = new Set();
-    solution?.selectedEdges.forEach((edge) => {
-      const [a, b] = edge.from < edge.to ? [edge.from, edge.to] : [edge.to, edge.from];
-      keys.add(`${a}:${b}`);
-    });
-    return keys;
-  }, [solution]);
+  const selectedEdges = solution?.selectedEdges;
 
-  const communities = solution?.meta?.communities;
-  const isClusterView = Array.isArray(communities) && communities.length === graph.nodes.length;
+  const sets = useMemo(() => getDisjointSets(graph, selectedEdges || []), [graph, selectedEdges]);
 
-  // The scored group: the people the chosen edges actually link together.
-  const scoredGroup = useMemo(
-    () => getPeopleComponents(graph, solution?.selectedEdges || []),
-    [graph, solution],
-  );
   const canvasColors =
     theme === 'dark'
       ? {
           background: '#101827',
           mutedText: '#94a3b8',
-          edge: 'rgba(148, 163, 184, 0.12)',
-          selectedEdge: 'rgba(226, 232, 240, 0.7)',
+          idle: 'rgba(148, 163, 184, 0.35)',
           hover: '#f8fafc',
           highlight: '#f59e0b',
         }
       : {
           background: '#f8fafc',
           mutedText: '#475569',
-          edge: 'rgba(148, 163, 184, 0.16)',
-          selectedEdge: 'rgba(15, 23, 42, 0.62)',
+          idle: 'rgba(100, 116, 139, 0.4)',
           hover: '#020617',
           highlight: '#b45309',
         };
 
-  const layout = useMemo(() => {
-    if (isClusterView) {
-      return layoutByCommunity(graph, communities, size.width, size.height);
-    }
-    return { positions: layoutByType(graph, size.width, size.height), bounds: new Map() };
-  }, [communities, graph, isClusterView, size.height, size.width]);
-
+  const layout = useMemo(() => layoutBySet(graph, sets, size.width, size.height), [graph, sets, size.height, size.width]);
   const positions = layout.positions;
-  const rankedClusters = useMemo(() => {
-    if (!isClusterView) return [];
-    return Array.from(layout.bounds.entries())
-      .map(([community, bounds]) => ({ community, ...bounds }))
-      .sort((a, b) => b.peopleCount - a.peopleCount);
-  }, [isClusterView, layout.bounds]);
 
-  const visibleClusters = rankedClusters.slice(0, 8);
-  const hiddenClusterCount = rankedClusters.length - visibleClusters.length;
+  const rankedSets = useMemo(
+    () =>
+      [...Array(sets.setCount).keys()].map((group) => ({
+        group,
+        peopleCount: sets.peopleByGroup[group],
+      })),
+    [sets],
+  );
+  const visibleSets = rankedSets.slice(0, 8);
+  const hiddenSetCount = rankedSets.length - visibleSets.length;
 
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) => {
@@ -214,101 +198,67 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
     context.fillStyle = canvasColors.background;
     context.fillRect(0, 0, size.width, size.height);
 
-    if (isClusterView) {
-      layout.bounds.forEach((bounds, community) => {
-        const color = getClusterColor(community);
-        context.beginPath();
-        context.arc(bounds.x, bounds.y, bounds.radius, 0, Math.PI * 2);
-        context.fillStyle = hexToRgba(color, 0.08);
-        context.strokeStyle = hexToRgba(color, 0.28);
-        context.lineWidth = 1.2;
-        context.fill();
-        context.stroke();
-      });
-    }
-
-    // Edges of the scored group are drawn last so the group the score refers to
-    // stays traceable on top of everything else.
-    const scoredEdges = [];
-
-    graph.links.forEach((edge) => {
-      const from = positions.get(edge.from);
-      const to = positions.get(edge.to);
-      const [a, b] = edge.from < edge.to ? [edge.from, edge.to] : [edge.to, edge.from];
-      const isSelected = selectedKeys.has(`${a}:${b}`);
-
-      if (isSelected && scoredGroup.roots[edge.from] === scoredGroup.largestRoot) {
-        scoredEdges.push({ from, to });
-        return;
-      }
+    layout.bounds.forEach((bound, groupId) => {
+      const isUnused = groupId === UNUSED_GROUP;
+      const isLargest = groupId === sets.largestGroup;
+      const color = isUnused ? canvasColors.idle : getClusterColor(groupId);
 
       context.beginPath();
-      context.moveTo(from.x, from.y);
-      context.lineTo(to.x, to.y);
-      if (isSelected) {
-        const community = communities?.[edge.from];
-        const sameCommunity = isClusterView && community === communities[edge.to];
-        context.strokeStyle = sameCommunity ? hexToRgba(getClusterColor(community), 0.72) : canvasColors.selectedEdge;
-      } else {
-        context.strokeStyle = canvasColors.edge;
-      }
-      context.lineWidth = isSelected ? 2.2 : 0.8;
+      context.arc(bound.x, bound.y, bound.radius, 0, Math.PI * 2);
+      context.fillStyle = isUnused ? 'rgba(148, 163, 184, 0.05)' : hexToRgba(color, 0.08);
+      context.fill();
+      context.strokeStyle = isLargest ? canvasColors.highlight : isUnused ? canvasColors.idle : hexToRgba(color, 0.28);
+      context.lineWidth = isLargest ? 2.4 : 1.2;
       context.stroke();
     });
 
-    context.strokeStyle = canvasColors.highlight;
-    context.lineWidth = 2.6;
-    scoredEdges.forEach(({ from, to }) => {
+    // Only the surviving edges are drawn. Showing the discarded options too is
+    // what made it impossible to see that each person keeps one gym and one
+    // store, and it smeared the disjoint sets into each other.
+    (selectedEdges || []).forEach((edge) => {
+      const from = positions.get(edge.from);
+      const to = positions.get(edge.to);
+      const group = sets.groupOf[edge.from];
+
       context.beginPath();
       context.moveTo(from.x, from.y);
       context.lineTo(to.x, to.y);
+      context.strokeStyle =
+        group === sets.largestGroup ? canvasColors.highlight : hexToRgba(getClusterColor(group), 0.72);
+      context.lineWidth = group === sets.largestGroup ? 2.6 : 2;
       context.stroke();
     });
 
     graph.nodes.forEach((node) => {
       const position = positions.get(node.index);
       const typeColors = TYPE_COLORS[node.type];
-      const clusterColor = isClusterView ? getClusterColor(communities[node.index]) : typeColors.fill;
+      const group = sets.groupOf[node.index];
+      const isUnused = group === UNUSED_GROUP;
       const radius = node.type === NODE_TYPES.people ? 5.5 : 8;
       const isHovered = hoveredNode === node.index;
 
       context.beginPath();
       context.arc(position.x, position.y, isHovered ? radius + 4 : radius, 0, Math.PI * 2);
-      context.fillStyle = isClusterView ? hexToRgba(clusterColor, 0.82) : typeColors.fill;
+      context.fillStyle = isUnused ? canvasColors.idle : hexToRgba(getClusterColor(group), 0.82);
       context.strokeStyle = isHovered ? canvasColors.hover : typeColors.stroke;
       context.lineWidth = isHovered ? 2.5 : 1.4;
       context.fill();
       context.stroke();
 
-      if (isClusterView && node.type !== NODE_TYPES.people) {
+      if (node.type !== NODE_TYPES.people) {
         context.beginPath();
         context.arc(position.x, position.y, radius * 0.46, 0, Math.PI * 2);
         context.fillStyle = typeColors.fill;
         context.fill();
       }
-
-      // Ring only people, so counting rings gives exactly the score.
-      if (node.type === NODE_TYPES.people && scoredGroup.roots[node.index] === scoredGroup.largestRoot) {
-        context.beginPath();
-        context.arc(position.x, position.y, radius + 3.5, 0, Math.PI * 2);
-        context.strokeStyle = canvasColors.highlight;
-        context.lineWidth = 2;
-        context.stroke();
-      }
     });
 
     context.font = '600 12px Inter, system-ui, sans-serif';
     context.fillStyle = canvasColors.mutedText;
-    if (isClusterView) {
-      context.fillText(`${solution.meta.communityCount} visual communities`, 18, 28);
-      context.fillStyle = canvasColors.highlight;
-      context.fillText(`Highlighted: biggest linked group, ${scoredGroup.largestPeople} people = score`, 18, 46);
-    } else {
-      context.fillText('Gyms', 18, 28);
-      context.fillText('People', size.width / 2 - 20, 28);
-      context.fillText('Stores', size.width - 62, 28);
-    }
-  }, [canvasColors, communities, graph, hoveredNode, isClusterView, layout.bounds, positions, scoredGroup, selectedKeys, size, solution]);
+    context.fillText(`${sets.setCount} disjoint sets`, 18, 28);
+    context.fillStyle = canvasColors.highlight;
+    context.fillText(`Biggest set: ${sets.largestPeople} people = score`, 18, 46);
+  }, [canvasColors, graph, hoveredNode, layout.bounds, positions, selectedEdges, sets, size]);
 
   function handlePointerMove(event) {
     const point = getCanvasPoint(canvasRef.current, event);
@@ -328,6 +278,7 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
   }
 
   const hovered = hoveredNode === null ? null : graph.nodes[hoveredNode];
+  const hoveredGroup = hovered ? sets.groupOf[hovered.index] : UNUSED_GROUP;
 
   return (
     <div className="graph-shell" ref={wrapperRef}>
@@ -342,26 +293,29 @@ export default function GraphCanvas({ graph, solution, theme = 'light' }) {
           <strong>{hovered.type}</strong>
           <span>ID {hovered.id}</span>
           <span>{hovered.neighbors.length} options</span>
-          {isClusterView ? <span>Community {communities[hovered.index] + 1}</span> : null}
-        </div>
-      ) : null}
-      {isClusterView ? (
-        <div className="cluster-legend">
-          <strong>Biggest linked group</strong>
           <span>
-            <i style={{ background: canvasColors.highlight }} />
-            {scoredGroup.largestPeople} people = score
+            {hoveredGroup === UNUSED_GROUP
+              ? 'Not chosen by anyone'
+              : `Set ${hoveredGroup + 1} · ${sets.peopleByGroup[hoveredGroup]} people`}
           </span>
-          <strong>Communities (people)</strong>
-          {visibleClusters.map((cluster) => (
-            <span key={cluster.community}>
-              <i style={{ background: getClusterColor(cluster.community) }} />
-              C{cluster.community + 1}: {cluster.peopleCount}
-            </span>
-          ))}
-          {hiddenClusterCount > 0 ? <span className="legend-more">+{hiddenClusterCount} more</span> : null}
         </div>
       ) : null}
+      <div className="cluster-legend">
+        <strong>Disjoint sets (people)</strong>
+        {visibleSets.map((set) => (
+          <span key={set.group}>
+            <i
+              style={{
+                background: set.group === sets.largestGroup ? canvasColors.highlight : getClusterColor(set.group),
+              }}
+            />
+            Set {set.group + 1}: {set.peopleCount}
+            {set.group === sets.largestGroup ? ' = score' : ''}
+          </span>
+        ))}
+        {hiddenSetCount > 0 ? <span className="legend-more">+{hiddenSetCount} more</span> : null}
+        {sets.unusedCount > 0 ? <span className="legend-more">{sets.unusedCount} activities unused</span> : null}
+      </div>
     </div>
   );
 }
